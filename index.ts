@@ -8,7 +8,7 @@ import {
   Tool,
 } from "@modelcontextprotocol/sdk/types.js";
 import fetch from 'node-fetch';
-import SwaggerParser from 'swagger-parser';
+import SwaggerParser from '@apidevtools/swagger-parser';
 import fs from 'fs-extra';
 import os from 'os';
 import path from 'path';
@@ -18,9 +18,34 @@ import chokidar from 'chokidar';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+// 定义 Swagger 相关接口
+interface SwaggerConfig {
+  swaggerUrl: string;
+}
+
+interface SwaggerEndpoint {
+  summary?: string;
+  description?: string;
+  parameters?: SwaggerParameter[];
+  responses?: Record<string, any>;
+  operationId?: string;
+}
+
+interface SwaggerParameter {
+  name: string;
+  in: string;
+  description?: string;
+  required?: boolean;
+  type?: string;
+}
+
+interface SwaggerDoc {
+  paths: Record<string, Record<string, SwaggerEndpoint>>;
+}
+
 // 缓存 swagger 数据
-let swaggerCache = null;
-let swaggerWatcher = null;
+let swaggerCache: SwaggerDoc | null = null;
+let swaggerWatcher: chokidar.FSWatcher | null = null;
 
 // 定义工具
 const SWAGGER_INITIALIZE: Tool = {
@@ -82,13 +107,23 @@ const SWAGGER_GET_ALL_ENDPOINTS: Tool = {
   },
 };
 
+interface CallToolParams {
+  name: string;
+  arguments: {
+    query?: string;
+    path?: string;
+    method?: string;
+    language?: string;
+  };
+}
+
 // 工具函数
-function getSwaggerConfigPath() {
+function getSwaggerConfigPath(): string {
     const homeDir = os.homedir();
     return path.join(homeDir, 'swagger.json');
 }
 
-async function readSwaggerConfig() {
+async function readSwaggerConfig(): Promise<SwaggerConfig | null> {
     const configPath = getSwaggerConfigPath();
     try {
         const exists = await fs.pathExists(configPath);
@@ -103,19 +138,26 @@ async function readSwaggerConfig() {
     }
 }
 
-async function fetchSwaggerDoc(url) {
+async function fetchSwaggerDoc(url: string): Promise<SwaggerDoc | null> {
     try {
         const response = await fetch(url);
         const data = await response.json();
-        const api = await SwaggerParser.validate(data);
-        return api;
+        const api = await SwaggerParser.bundle(data as string);
+        return api as unknown as SwaggerDoc;
     } catch (error) {
         console.error('Error fetching swagger doc:', error);
         return null;
     }
 }
 
-function searchEndpoints(swagger, query) {
+function searchEndpoints(swagger: SwaggerDoc | null, query: string): Array<{
+    path: string;
+    method: string;
+    summary?: string;
+    description?: string;
+    parameters?: SwaggerParameter[];
+    responses?: Record<string, any>;
+}> {
     if (!swagger || !swagger.paths) {
         return [];
     }
@@ -151,29 +193,78 @@ function searchEndpoints(swagger, query) {
     return results;
 }
 
-function generateCode(endpoint, language = 'javascript') {
+function generateCode(endpoint: {
+    path: string;
+    method: string;
+    parameters?: SwaggerParameter[];
+}, language = 'javascript'): string {
     const { path, method, parameters } = endpoint;
     
     if (language === 'javascript') {
-        const paramList = parameters ? parameters.map(p => p.name).join(', ') : '';
-        const functionName = path.split('/').filter(Boolean).join('_');
+        // 处理参数
+        const queryParams = parameters?.filter(p => p.in === 'query') || [];
+        const bodyParams = parameters?.filter(p => p.in === 'body') || [];
+        const pathParams = parameters?.filter(p => p.in === 'path') || [];
         
+        // 构建函数参数列表
+        const allParams = [...queryParams, ...bodyParams, ...pathParams];
+        const paramList = allParams.map(p => p.name).join(', ');
+        
+        // 构建函数名
+        const functionName = path
+            .split('/')
+            .filter(Boolean)
+            .map(s => s.replace(/[^a-zA-Z0-9]/g, '_'))
+            .join('_');
+        
+        // 处理路径参数
+        let urlPath = path;
+        pathParams.forEach(p => {
+            urlPath = urlPath.replace(`{${p.name}}`, `\${${p.name}}`);
+        });
+        
+        // 处理查询参数
+        let queryString = '';
+        if (queryParams.length > 0) {
+            queryString = `const queryString = new URLSearchParams(
+                ${JSON.stringify(queryParams.map(p => p.name))}
+                .filter(key => typeof eval(key) !== 'undefined')
+                .reduce((obj, key) => ({ ...obj, [key]: eval(key) }), {})
+            ).toString();`;
+        }
+        
+        // 生成代码
         return `async function ${functionName}(${paramList}) {
-    const response = await fetch('${path}', {
+    ${queryString}
+    const url = \`${urlPath}\${queryString ? '?' + queryString : ''}\`;
+    
+    const options = {
         method: '${method}',
         headers: {
             'Content-Type': 'application/json',
-        },
-        ${parameters ? `body: JSON.stringify({ ${paramList} }),` : ''}
-    });
-    return response.json();
+            'Accept': 'application/json'
+        }${bodyParams.length > 0 ? `,
+        body: JSON.stringify(${bodyParams[0].name})` : ''}
+    };
+
+    try {
+        const response = await fetch(url, options);
+        if (!response.ok) {
+            throw new Error(\`HTTP error! status: \${response.status}\`);
+        }
+        return await response.json();
+    } catch (error) {
+        console.error('API call failed:', error);
+        throw error;
+    }
 }`;
     }
     
-    return '// Code generation for other languages not implemented yet';
+    // 如果需要支持其他语言，可以在这里添加
+    return `// ${language} code generation is not supported yet`;
 }
 
-function watchSwaggerConfig() {
+function watchSwaggerConfig(): void {
     if (swaggerWatcher) {
         swaggerWatcher.close();
     }
@@ -212,7 +303,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
 
 server.setRequestHandler(CallToolRequestSchema, async (request) => {
   try {
-    const { name, arguments: args } = request.params;
+    const { name, arguments: args } = request.params as CallToolParams;
 
     switch (name) {
       case "mcp_swagger_initialize": {
@@ -229,25 +320,45 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
       case "mcp_swagger_search": {
         if (!swaggerCache) {
-          await server.handleRequest(CallToolRequestSchema, {
-            params: { name: "mcp_swagger_initialize", arguments: {} }
-          });
+            const config = await readSwaggerConfig();
+            if (config && config.swaggerUrl) {
+                swaggerCache = await fetchSwaggerDoc(config.swaggerUrl);
+            }
+        }
+        if (!args.query) {
+            return {
+                content: [{ type: "text", text: JSON.stringify({ error: "Query is required" }) }],
+                isError: true,
+            };
         }
         const results = searchEndpoints(swaggerCache, args.query);
         return {
-          content: [{ type: "text", text: JSON.stringify(results) }],
-          isError: false,
+            content: [{ type: "text", text: JSON.stringify(results) }],
+            isError: false,
         };
       }
 
       case "mcp_swagger_generate_code": {
         if (!swaggerCache) {
-          await server.handleRequest(CallToolRequestSchema, {
-            params: { name: "mcp_swagger_initialize", arguments: {} }
-          });
+            const config = await readSwaggerConfig();
+            if (config && config.swaggerUrl) {
+                swaggerCache = await fetchSwaggerDoc(config.swaggerUrl);
+            }
         }
-        const endpoint = swaggerCache.paths[args.path][args.method.toLowerCase()];
+        if (!args.path || !args.method) {
+            return {
+                content: [{ type: "text", text: JSON.stringify({ error: "Path and method are required" }) }],
+                isError: true,
+            };
+        }
+
+        const methodLower = args.method.toLowerCase();
+        const endpoint = swaggerCache?.paths[args.path]?.[methodLower];
         if (!endpoint) {
+            return {
+                content: [{ type: "text", text: JSON.stringify({ error: 'Endpoint not found' }) }],
+                isError: true,
+            };
           return {
             content: [{ type: "text", text: JSON.stringify({ error: 'Endpoint not found' }) }],
             isError: true,
@@ -262,17 +373,24 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
       case "mcp_swagger_get_all_endpoints": {
         if (!swaggerCache) {
-          await server.handleRequest(CallToolRequestSchema, {
-            params: { name: "mcp_swagger_initialize", arguments: {} }
-          });
+            const config = await readSwaggerConfig();
+            if (config && config.swaggerUrl) {
+                swaggerCache = await fetchSwaggerDoc(config.swaggerUrl);
+            }
+        }
+        if (!swaggerCache?.paths) {
+            return {
+                content: [{ type: "text", text: JSON.stringify({ error: "No endpoints available" }) }],
+                isError: true,
+            };
         }
         const endpoints = Object.entries(swaggerCache.paths).map(([path, methods]) => ({
-          path,
-          methods: Object.keys(methods)
+            path,
+            methods: Object.keys(methods)
         }));
         return {
-          content: [{ type: "text", text: JSON.stringify(endpoints) }],
-          isError: false,
+            content: [{ type: "text", text: JSON.stringify(endpoints) }],
+            isError: false,
         };
       }
 
@@ -305,4 +423,4 @@ async function runServer() {
 runServer().catch((error) => {
   console.error("Fatal error running server:", error);
   process.exit(1);
-});
+}); 

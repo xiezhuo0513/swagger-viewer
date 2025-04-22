@@ -2,28 +2,47 @@
   "name": "@cursor/swagger-viewer",
   "version": "1.0.0",
   "description": "A Cursor MCP tool for viewing and generating code from Swagger documentation",
-  "main": "index.js",
+  "main": "dist/index.js",
   "type": "module",
+  "bin": {
+    "swagger-viewer": "./dist/index.js"
+  },
+  "files": [
+    "dist",
+    "mcp.json"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "prepare": "npm run build",
+    "start": "node dist/index.js"
+  },
   "repository": {
     "type": "git",
-    "url": "https://github.com/your-username/swagger-viewer"
+    "url": "git+https://github.com/xiezhuo0513/swagger-viewer.git"
   },
   "keywords": [
     "cursor",
     "mcp",
     "swagger",
     "api",
-    "documentation",
-    "code-generation"
+    "documentation"
   ],
-  "author": "Your Name",
+  "author": "xiezhuo0513",
   "license": "MIT",
   "dependencies": {
+    "@apidevtools/swagger-parser": "^10.1.0",
+    "@modelcontextprotocol/sdk": "^1.0.1",
     "node-fetch": "^3.3.2",
-    "swagger-parser": "^10.0.3",
     "fs-extra": "^11.2.0",
     "os": "^0.1.2",
     "path": "^0.12.7",
     "chokidar": "^3.5.3"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.19",
+    "@types/node-fetch": "^2.6.11",
+    "@types/swagger-parser": "^7.0.1",
+    "@types/fs-extra": "^11.0.4",
+    "typescript": "^5.3.3"
   }
 }
