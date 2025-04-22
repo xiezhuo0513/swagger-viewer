@@ -1,0 +1,29 @@
+{
+  "name": "@cursor/swagger-viewer",
+  "version": "1.0.0",
+  "description": "A Cursor MCP tool for viewing and generating code from Swagger documentation",
+  "main": "index.js",
+  "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/your-username/swagger-viewer"
+  },
+  "keywords": [
+    "cursor",
+    "mcp",
+    "swagger",
+    "api",
+    "documentation",
+    "code-generation"
+  ],
+  "author": "Your Name",
+  "license": "MIT",
+  "dependencies": {
+    "node-fetch": "^3.3.2",
+    "swagger-parser": "^10.0.3",
+    "fs-extra": "^11.2.0",
+    "os": "^0.1.2",
+    "path": "^0.12.7",
+    "chokidar": "^3.5.3"
+  }
+}

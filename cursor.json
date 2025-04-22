@@ -1,0 +1,33 @@
+{
+  "name": "Swagger Viewer",
+  "version": "1.0.0",
+  "description": "一个用于快速查看和使用 Swagger API 文档的 Cursor MCP 工具",
+  "author": "Your Name",
+  "license": "MIT",
+  "icon": "https://swagger.io/favicon.ico",
+  "tags": ["swagger", "api", "documentation", "code-generation"],
+  "mcp": {
+    "exports": {
+      "mcp_swagger_initialize": {
+        "description": "初始化 Swagger 工具并加载配置"
+      },
+      "mcp_swagger_search": {
+        "description": "搜索 API 接口",
+        "parameters": {
+          "query": "搜索关键词"
+        }
+      },
+      "mcp_swagger_generate_code": {
+        "description": "生成接口调用代码",
+        "parameters": {
+          "path": "API 路径",
+          "method": "HTTP 方法",
+          "language": "编程语言（可选，默认为 javascript）"
+        }
+      },
+      "mcp_swagger_get_all_endpoints": {
+        "description": "获取所有可用接口"
+      }
+    }
+  }
+} 

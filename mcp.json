@@ -1,0 +1,186 @@
+{
+  "name": "swagger-viewer",
+  "displayName": "Swagger Viewer",
+  "version": "1.0.0",
+  "description": "一个用于快速查看和使用 Swagger API 文档的 Cursor MCP 工具",
+  "publisher": "your-name",
+  "license": "MIT",
+  "icon": "https://swagger.io/favicon.ico",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/your-username/swagger-viewer"
+  },
+  "categories": [
+    "API Tools",
+    "Code Generators"
+  ],
+  "tags": [
+    "swagger",
+    "api",
+    "documentation",
+    "code-generation"
+  ],
+  "engines": {
+    "cursor": "^1.0.0"
+  },
+  "activationEvents": [
+    "onCommand:swagger-viewer.initialize",
+    "onCommand:swagger-viewer.search",
+    "onCommand:swagger-viewer.generateCode",
+    "onCommand:swagger-viewer.getAllEndpoints"
+  ],
+  "contributes": {
+    "commands": [
+      {
+        "command": "swagger-viewer.initialize",
+        "title": "Swagger: 初始化工具",
+        "category": "Swagger Viewer"
+      },
+      {
+        "command": "swagger-viewer.search",
+        "title": "Swagger: 搜索接口",
+        "category": "Swagger Viewer"
+      },
+      {
+        "command": "swagger-viewer.generateCode",
+        "title": "Swagger: 生成接口代码",
+        "category": "Swagger Viewer"
+      },
+      {
+        "command": "swagger-viewer.getAllEndpoints",
+        "title": "Swagger: 获取所有接口",
+        "category": "Swagger Viewer"
+      }
+    ],
+    "configuration": {
+      "title": "Swagger Viewer",
+      "properties": {
+        "swagger-viewer.configPath": {
+          "type": "string",
+          "default": "~/swagger.json",
+          "description": "swagger.json 配置文件路径"
+        },
+        "swagger-viewer.defaultLanguage": {
+          "type": "string",
+          "default": "javascript",
+          "enum": ["javascript", "typescript", "python"],
+          "description": "默认代码生成语言"
+        },
+        "swagger-viewer.autoRefresh": {
+          "type": "boolean",
+          "default": true,
+          "description": "是否自动刷新 Swagger 文档"
+        }
+      }
+    }
+  },
+  "mcp": {
+    "exports": {
+      "mcp_swagger_initialize": {
+        "description": "初始化 Swagger 工具并加载配置",
+        "parameters": {},
+        "returns": {
+          "type": "object",
+          "properties": {
+            "success": {
+              "type": "boolean",
+              "description": "初始化是否成功"
+            },
+            "message": {
+              "type": "string",
+              "description": "初始化结果信息"
+            }
+          }
+        }
+      },
+      "mcp_swagger_search": {
+        "description": "搜索 API 接口",
+        "parameters": {
+          "query": {
+            "type": "string",
+            "description": "搜索关键词"
+          }
+        },
+        "returns": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "path": {
+                "type": "string",
+                "description": "API 路径"
+              },
+              "method": {
+                "type": "string",
+                "description": "HTTP 方法"
+              },
+              "summary": {
+                "type": "string",
+                "description": "接口描述"
+              },
+              "parameters": {
+                "type": "array",
+                "description": "接口参数"
+              }
+            }
+          }
+        }
+      },
+      "mcp_swagger_generate_code": {
+        "description": "生成接口调用代码",
+        "parameters": {
+          "path": {
+            "type": "string",
+            "description": "API 路径"
+          },
+          "method": {
+            "type": "string",
+            "description": "HTTP 方法"
+          },
+          "language": {
+            "type": "string",
+            "description": "编程语言",
+            "default": "javascript",
+            "enum": ["javascript", "typescript", "python"]
+          }
+        },
+        "returns": {
+          "type": "object",
+          "properties": {
+            "code": {
+              "type": "string",
+              "description": "生成的代码"
+            },
+            "language": {
+              "type": "string",
+              "description": "代码语言"
+            }
+          }
+        }
+      },
+      "mcp_swagger_get_all_endpoints": {
+        "description": "获取所有可用接口",
+        "parameters": {},
+        "returns": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "path": {
+                "type": "string",
+                "description": "API 路径"
+              },
+              "methods": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "支持的 HTTP 方法"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+} 
