@@ -6,7 +6,9 @@
         "/c",
         "npx",
         "-y",
-        "swagger-viewer@git+https://github.com/xiezhuo0513/swagger-viewer.git"
+        "@smithery/cli@latest",
+        "run",
+        "swagger-viewer"
       ],
       "exports": {
         "mcp_swagger_initialize": {
