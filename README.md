@@ -26,6 +26,18 @@ npm install
 }
 ```
 
+npx：
+
+```json
+"swagger-viewer": {
+      "command": "cmd",
+      "swagger-viewer": {
+      "command": "cmd",
+      "args": ["/c", "npx", "-y", "@xc_angelwatch/swagger-viewer"]
+    }
+}
+```
+
 ## 使用方法
 
 该工具提供以下 MCP 接口：
@@ -59,5 +71,4 @@ const endpoints = await mcp_swagger_get_all_endpoints();
 
 目前支持生成以下语言的代码：
 
-- JavaScript (默认)
-- 更多语言支持正在开发中... 
+

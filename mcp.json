@@ -2,14 +2,10 @@
   "mcpServers": {
     "swagger-viewer": {
       "command": "cmd",
-      "args": [
-        "/c",
-        "npx",
-        "-y",
-        "@smithery/cli@latest",
-        "run",
-        "swagger-viewer"
-      ],
+      "swagger-viewer": {
+      "command": "cmd",
+      "args": ["/c", "npx", "-y", "@xc_angelwatch/swagger-viewer"]
+    },
       "exports": {
         "mcp_swagger_initialize": {
           "description": "初始化 Swagger 工具并加载配置"
