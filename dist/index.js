@@ -4,13 +4,12 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { CallToolRequestSchema, ListToolsRequestSchema, } from "@modelcontextprotocol/sdk/types.js";
 import fetch from 'node-fetch';
 import SwaggerParser from '@apidevtools/swagger-parser';
-import fs from 'fs-extra';
-import os from 'os';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import chokidar from 'chokidar';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+// 添加工作空间路径常量
+const WORKSPACE_PATH = decodeURIComponent('/d%3A/Code_xie/swagger-viewer');
 // 缓存 swagger 数据
 let swaggerCache = null;
 let swaggerWatcher = null;
@@ -20,8 +19,13 @@ const SWAGGER_INITIALIZE = {
     description: "初始化 Swagger 工具并加载配置",
     inputSchema: {
         type: "object",
-        properties: {},
-        required: [],
+        properties: {
+            swaggerUrl: {
+                type: "string",
+                description: "Swagger 文档的 URL"
+            }
+        },
+        required: ["swaggerUrl"],
     },
 };
 const SWAGGER_SEARCH = {
@@ -70,26 +74,6 @@ const SWAGGER_GET_ALL_ENDPOINTS = {
         required: [],
     },
 };
-// 工具函数
-function getSwaggerConfigPath() {
-    const homeDir = os.homedir();
-    return path.join(homeDir, 'swagger.json');
-}
-async function readSwaggerConfig() {
-    const configPath = getSwaggerConfigPath();
-    try {
-        const exists = await fs.pathExists(configPath);
-        if (!exists) {
-            return null;
-        }
-        const config = await fs.readJson(configPath);
-        return config;
-    }
-    catch (error) {
-        console.error('Error reading swagger config:', error);
-        return null;
-    }
-}
 async function fetchSwaggerDoc(url) {
     try {
         const response = await fetch(url);
@@ -192,22 +176,6 @@ function generateCode(endpoint, language = 'javascript') {
     // 如果需要支持其他语言，可以在这里添加
     return `// ${language} code generation is not supported yet`;
 }
-function watchSwaggerConfig() {
-    if (swaggerWatcher) {
-        swaggerWatcher.close();
-    }
-    const configPath = getSwaggerConfigPath();
-    swaggerWatcher = chokidar.watch(configPath, {
-        persistent: true
-    });
-    swaggerWatcher.on('change', async () => {
-        console.log('Swagger config changed, updating...');
-        const config = await readSwaggerConfig();
-        if (config && config.swaggerUrl) {
-            swaggerCache = await fetchSwaggerDoc(config.swaggerUrl);
-        }
-    });
-}
 // 初始化服务器
 const server = new Server({
     name: "swagger-viewer",
@@ -226,22 +194,52 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         const { name, arguments: args } = request.params;
         switch (name) {
             case "mcp_swagger_initialize": {
-                const config = await readSwaggerConfig();
-                if (config && config.swaggerUrl) {
-                    swaggerCache = await fetchSwaggerDoc(config.swaggerUrl);
-                    watchSwaggerConfig();
+                if (!args.swaggerUrl) {
+                    return {
+                        content: [{ type: "text", text: JSON.stringify({
+                                    success: false,
+                                    error: "swaggerUrl is required"
+                                }) }],
+                        isError: true
+                    };
                 }
-                return {
-                    content: [{ type: "text", text: JSON.stringify({ success: true }) }],
-                    isError: false,
-                };
+                try {
+                    swaggerCache = await fetchSwaggerDoc(args.swaggerUrl);
+                    if (!swaggerCache) {
+                        return {
+                            content: [{ type: "text", text: JSON.stringify({
+                                        success: false,
+                                        error: "Failed to fetch swagger documentation"
+                                    }) }],
+                            isError: true
+                        };
+                    }
+                    return {
+                        content: [{ type: "text", text: JSON.stringify({
+                                    success: true,
+                                    cacheStatus: 'loaded'
+                                }) }],
+                        isError: false
+                    };
+                }
+                catch (error) {
+                    return {
+                        content: [{ type: "text", text: JSON.stringify({
+                                    success: false,
+                                    error: error instanceof Error ? error.message : String(error)
+                                }) }],
+                        isError: true
+                    };
+                }
             }
             case "mcp_swagger_search": {
                 if (!swaggerCache) {
-                    const config = await readSwaggerConfig();
-                    if (config && config.swaggerUrl) {
-                        swaggerCache = await fetchSwaggerDoc(config.swaggerUrl);
-                    }
+                    return {
+                        content: [{ type: "text", text: JSON.stringify({
+                                    error: "Please initialize swagger first"
+                                }) }],
+                        isError: true
+                    };
                 }
                 if (!args.query) {
                     return {
@@ -257,10 +255,12 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             }
             case "mcp_swagger_generate_code": {
                 if (!swaggerCache) {
-                    const config = await readSwaggerConfig();
-                    if (config && config.swaggerUrl) {
-                        swaggerCache = await fetchSwaggerDoc(config.swaggerUrl);
-                    }
+                    return {
+                        content: [{ type: "text", text: JSON.stringify({
+                                    error: "Please initialize swagger first"
+                                }) }],
+                        isError: true
+                    };
                 }
                 if (!args.path || !args.method) {
                     return {
@@ -288,10 +288,12 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             }
             case "mcp_swagger_get_all_endpoints": {
                 if (!swaggerCache) {
-                    const config = await readSwaggerConfig();
-                    if (config && config.swaggerUrl) {
-                        swaggerCache = await fetchSwaggerDoc(config.swaggerUrl);
-                    }
+                    return {
+                        content: [{ type: "text", text: JSON.stringify({
+                                    error: "Please initialize swagger first"
+                                }) }],
+                        isError: true
+                    };
                 }
                 if (!swaggerCache?.paths) {
                     return {

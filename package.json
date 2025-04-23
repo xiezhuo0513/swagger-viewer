@@ -1,6 +1,6 @@
 {
   "name": "@xc_angelwatch/swagger-viewer",
-  "version": "1.0.10",
+  "version": "1.0.20",
   "description": "Swagger API 文档查看器 MCP 工具",
   "main": "dist/index.js",
   "type": "module",

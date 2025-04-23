@@ -18,6 +18,9 @@ import chokidar from 'chokidar';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+// 添加工作空间路径常量
+const WORKSPACE_PATH = decodeURIComponent('/d%3A/Code_xie/swagger-viewer');
+
 // 定义 Swagger 相关接口
 interface SwaggerConfig {
   swaggerUrl: string;
@@ -53,8 +56,13 @@ const SWAGGER_INITIALIZE: Tool = {
   description: "初始化 Swagger 工具并加载配置",
   inputSchema: {
     type: "object",
-    properties: {},
-    required: [],
+    properties: {
+      swaggerUrl: {
+        type: "string",
+        description: "Swagger 文档的 URL"
+      }
+    },
+    required: ["swaggerUrl"],
   },
 };
 
@@ -114,28 +122,8 @@ interface CallToolParams {
     path?: string;
     method?: string;
     language?: string;
+    swaggerUrl?: string;
   };
-}
-
-// 工具函数
-function getSwaggerConfigPath(): string {
-    const homeDir = os.homedir();
-    return path.join(homeDir, 'swagger.json');
-}
-
-async function readSwaggerConfig(): Promise<SwaggerConfig | null> {
-    const configPath = getSwaggerConfigPath();
-    try {
-        const exists = await fs.pathExists(configPath);
-        if (!exists) {
-            return null;
-        }
-        const config = await fs.readJson(configPath);
-        return config;
-    } catch (error) {
-        console.error('Error reading swagger config:', error);
-        return null;
-    }
 }
 
 async function fetchSwaggerDoc(url: string): Promise<SwaggerDoc | null> {
@@ -264,25 +252,6 @@ function generateCode(endpoint: {
     return `// ${language} code generation is not supported yet`;
 }
 
-function watchSwaggerConfig(): void {
-    if (swaggerWatcher) {
-        swaggerWatcher.close();
-    }
-
-    const configPath = getSwaggerConfigPath();
-    swaggerWatcher = chokidar.watch(configPath, {
-        persistent: true
-    });
-
-    swaggerWatcher.on('change', async () => {
-        console.log('Swagger config changed, updating...');
-        const config = await readSwaggerConfig();
-        if (config && config.swaggerUrl) {
-            swaggerCache = await fetchSwaggerDoc(config.swaggerUrl);
-        }
-    });
-}
-
 // 初始化服务器
 const server = new Server(
   {
@@ -307,23 +276,54 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
     switch (name) {
       case "mcp_swagger_initialize": {
-        const config = await readSwaggerConfig();
-        if (config && config.swaggerUrl) {
-            swaggerCache = await fetchSwaggerDoc(config.swaggerUrl);
-            watchSwaggerConfig();
+        if (!args.swaggerUrl) {
+            return {
+                content: [{ type: "text", text: JSON.stringify({ 
+                    success: false,
+                    error: "swaggerUrl is required" 
+                }) }],
+                isError: true
+            };
         }
-        return {
-          content: [{ type: "text", text: JSON.stringify({ success: true }) }],
-          isError: false,
-        };
+
+        try {
+            swaggerCache = await fetchSwaggerDoc(args.swaggerUrl);
+            if (!swaggerCache) {
+                return {
+                    content: [{ type: "text", text: JSON.stringify({ 
+                        success: false,
+                        error: "Failed to fetch swagger documentation" 
+                    }) }],
+                    isError: true
+                };
+            }
+
+            return {
+                content: [{ type: "text", text: JSON.stringify({ 
+                    success: true,
+                    cacheStatus: 'loaded'
+                }) }],
+                isError: false
+            };
+        } catch (error) {
+            return {
+                content: [{ type: "text", text: JSON.stringify({ 
+                    success: false,
+                    error: error instanceof Error ? error.message : String(error)
+                }) }],
+                isError: true
+            };
+        }
       }
 
       case "mcp_swagger_search": {
         if (!swaggerCache) {
-            const config = await readSwaggerConfig();
-            if (config && config.swaggerUrl) {
-                swaggerCache = await fetchSwaggerDoc(config.swaggerUrl);
-            }
+            return {
+                content: [{ type: "text", text: JSON.stringify({ 
+                    error: "Please initialize swagger first" 
+                }) }],
+                isError: true
+            };
         }
         if (!args.query) {
             return {
@@ -340,10 +340,12 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
       case "mcp_swagger_generate_code": {
         if (!swaggerCache) {
-            const config = await readSwaggerConfig();
-            if (config && config.swaggerUrl) {
-                swaggerCache = await fetchSwaggerDoc(config.swaggerUrl);
-            }
+            return {
+                content: [{ type: "text", text: JSON.stringify({ 
+                    error: "Please initialize swagger first" 
+                }) }],
+                isError: true
+            };
         }
         if (!args.path || !args.method) {
             return {
@@ -373,10 +375,12 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
       case "mcp_swagger_get_all_endpoints": {
         if (!swaggerCache) {
-            const config = await readSwaggerConfig();
-            if (config && config.swaggerUrl) {
-                swaggerCache = await fetchSwaggerDoc(config.swaggerUrl);
-            }
+            return {
+                content: [{ type: "text", text: JSON.stringify({ 
+                    error: "Please initialize swagger first" 
+                }) }],
+                isError: true
+            };
         }
         if (!swaggerCache?.paths) {
             return {
